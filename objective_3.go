@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
 )
@@ -23,14 +24,19 @@ func handleRequest() {
 	myRouter.HandleFunc("/get_account", getUserDetails)
 	myRouter.HandleFunc("/create_account", createUserDetails).Methods("POST")
 	myRouter.HandleFunc("/delete_account", deleteUserAccount).Methods("DELETE")
-	myRouter.HandleFunc("/update_account", updateUserDetails).Methods("UPDATE")
+	myRouter.HandleFunc("/update_account", updateUserDetails).Methods("PUT")
 	log.Fatal(http.ListenAndServe(":100", myRouter))
 }
 
 func createUserDetails(w http.ResponseWriter, r *http.Request) {
 	reqBody, _ := ioutil.ReadAll(r.Body)
+
 	var detail UserDetail
 	json.Unmarshal(reqBody, &detail)
+	if detail.Email == "" || detail.Password == "" {
+		fmt.Fprint(w, "Invalid Credentials")
+		return
+	}
 
 	if contains(UserDetails, detail) {
 
@@ -38,7 +44,16 @@ func createUserDetails(w http.ResponseWriter, r *http.Request) {
 
 	} else {
 		UserDetails = append(UserDetails, detail)
+
+		f, err := os.OpenFile("login.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			fmt.Println("unable to create file")
+		}
 		fmt.Fprint(w, "User account created Successfully")
+		defer f.Close()
+		if _, err := f.WriteString(fmt.Sprintf("email=%s password=%s\n", detail.Email, detail.Password)); err != nil {
+			fmt.Println("Unable to save login details!")
+		}
 	}
 	fmt.Println(UserDetails)
 }
@@ -64,6 +79,7 @@ func updateUserDetails(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(reqBody, &detail)
 	for index, val := range UserDetails {
 		if detail.Email == val.Email {
+
 			UserDetails[index].Password = detail.Password
 			fmt.Fprintf(w, "User password Changed Successfully")
 		}
@@ -77,6 +93,7 @@ func contains(s []UserDetail, val UserDetail) bool {
 	}
 	return false
 }
+
 func main() {
 	UserDetails = []UserDetail{}
 	handleRequest()
